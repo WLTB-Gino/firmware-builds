@@ -1,0 +1,57 @@
+name: firmware-dispatch
+
+on:
+  workflow_dispatch:
+    inputs:
+      fw_repo:
+        description: 'Firmware repo (owner/name)'
+        required: false
+        default: 'WLTB-Gino/thingino-firmware'
+      fw_branch:
+        description: 'Firmware branch to build'
+        required: true
+      board:
+        description: 'Camera board (config dir under configs/cameras/)'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/themactep/thingino-builder-image:latest
+      options: --user root
+    steps:
+      - name: Setup workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Checkout firmware source
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.fw_repo }}
+          ref: ${{ inputs.fw_branch }}
+          submodules: true
+          fetch-depth: 1
+
+      - name: Build firmware
+        env:
+          TERM: linux
+          FORCE_UNSAFE_CONFIGURE: 1
+        run: BOARD=${{ inputs.board }} make fast WORKFLOW=1
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p /tmp/out
+          find output/ -name "thingino-${{ inputs.board }}.bin" ! -name "*update*" -exec cp {} /tmp/out/ \;
+          find output/ -name "u-boot-lzo-with-spl.bin" -exec cp {} /tmp/out/ \;
+          find output/ -name "uImage" -exec cp {} /tmp/out/ \;
+          find output/ -name "rootfs.squashfs" -exec cp {} /tmp/out/ \;
+          find output/ -name "*.sha256sum" -exec cp {} /tmp/out/ \;
+          ls -la /tmp/out
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: thingino-${{ inputs.board }}
+          path: /tmp/out/*
+          if-no-files-found: error
