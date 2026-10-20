@@ -13,6 +13,10 @@ on:
       board:
         description: 'Camera board (config dir under configs/cameras/)'
         required: true
+      group:
+        description: 'Camera group (empty = configs/cameras, exp = configs/cameras-exp)'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -37,7 +41,7 @@ jobs:
         env:
           TERM: linux
           FORCE_UNSAFE_CONFIGURE: 1
-        run: BOARD=${{ inputs.board }} make fast WORKFLOW=1
+        run: BOARD=${{ inputs.board }}${{ inputs.group && format(' GROUP={0}', inputs.group) || '' }} make fast WORKFLOW=1
 
       - name: Collect artifacts
         run: |
